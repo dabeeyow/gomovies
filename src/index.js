@@ -15,3 +15,11 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+let canonicalLink = document.querySelector("link[rel='canonical']");
+if (!canonicalLink) {
+  canonicalLink = document.createElement('link');
+  canonicalLink.rel = 'canonical';      
+  document.head.appendChild(canonicalLink);
+}
+canonicalLink.href = window.location.href;

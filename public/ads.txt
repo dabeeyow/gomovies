@@ -1,0 +1,15 @@
+# ads.txt for GoMovies - Authorized Ad Sellers
+# Last updated: September 12, 2025
+# Contact: info@gomovies.press
+
+# Placeholder for Media.net (Contextual ads, good for streaming sites)
+# media.net, YOUR_MEDIA_NET_PUB_ID, DIRECT, 8CUX0E27B
+
+# Placeholder for PropellerAds (Pop-ups, native ads, common for streaming)
+monetag.com, 2857537, DIRECT, 9553693
+
+# Placeholder for Adsterra (Native and pop-under ads)
+adsterra.com, 4783131, DIRECT, 26078077
+
+# Optional: Add resellers if you work with ad agencies
+# example.com, RESELLER_PUB_ID, RESELLER, 987654321
