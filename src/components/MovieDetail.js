@@ -407,18 +407,8 @@ const MovieDetail = () => {
 
           {/* Player */}
           <section className="player-section mb-16">
-            <h2 className="text-3xl font-bold text-center mb-6">Watch {movie.title} Free</h2>
-            {!iframeLoaded ? (
-              <div className="bg-gray-800 rounded-2xl p-12 text-center">
-                <p className="text-gray-400 mb-6">Click below to start streaming in HD</p>
-                <button
-                  onClick={handlePlayClick}
-                  className="bg-red-600 hover:bg-red-700 px-12 py-4 rounded-full font-bold text-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition"
-                >
-                  Play Movie
-                </button>
-              </div>
-            ) : playerError ? (
+            <h2 className="text-3xl font-bold text-center mb-6">Watch {movie.title}</h2>
+            {playerError ? (
               <div className="bg-red-900/50 border border-red-600 text-red-300 p-6 rounded-xl text-center">
                 Player error. Try again or use mirror.
               </div>
@@ -429,9 +419,9 @@ const MovieDetail = () => {
                   title={`${movie.title} stream`}
                   className="w-full h-full"
                   allowFullScreen
-                  onLoad={() => setPlayerError(false)}
-                  onError={() => setPlayerError(true)}
-                  loading="lazy"
+                  onLoad={handlePlayerLoad}
+                  onError={handlePlayerError}
+                  loading="eager"  // Changed to eager for immediate load
                 />
               </div>
             )}
