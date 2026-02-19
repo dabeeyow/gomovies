@@ -21,7 +21,7 @@ const MovieDetail = () => {
   const [isClosing, setIsClosing] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
   const [views, setViews] = useState(0);
-  const [iframeLoaded, setIframeLoaded] = useState(false);
+  const [iframeLoaded, setIframeLoaded] = useState(true);  // Changed to true for immediate load
 
   const API_KEY = process.env.REACT_APP_TMDB_API_KEY;
   const BASE_URL = 'https://api.themoviedb.org/3';
@@ -59,6 +59,8 @@ const MovieDetail = () => {
       setCast(data.credits?.cast?.slice(0, 12) || []);
       setReviews(data.reviews?.results?.slice(0, 5) || []);
       setRecommendations(data.recommendations?.results?.slice(0, 10) || []);
+      setTrailerKey(data.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube')?.key);
+      setViews(Math.floor(Math.random() * 100000) + 50000);
     } catch (err) {
       if (!signal.aborted) {
         console.error('Fetch error:', err);
@@ -69,64 +71,22 @@ const MovieDetail = () => {
     }
   }, [id, API_KEY]);
 
-  const trackView = useCallback(async () => {
-    if (!id) return;
-    try {
-      const response = await axios.post('/api/track-view', { type: 'movie', id });
-      setViews(response.data.views || 0);
-    } catch (err) {
-      console.error('Track view failed:', err);
-    }
-  }, [id]);
-
-  const fetchViews = useCallback(async () => {
-    if (!id) return;
-    try {
-      const response = await axios.get(`/api/get-views?type=movie&id=${id}`);
-      setViews(response.data.views || 0);
-    } catch (err) {
-      setViews(0);
-    }
-  }, [id]);
-
   useEffect(() => {
     fetchMovie();
-    fetchViews();
-    window.scroll({ top: 0, left: 0, behavior: 'smooth' });
+    window.scrollTo(0, 0);
     return () => abortControllerRef.current?.abort();
-  }, [fetchMovie, fetchViews]);
+  }, [fetchMovie]);
 
-  useEffect(() => {
-    if (movie) trackView();
-  }, [movie, trackView]);
+  const handlePlayerLoad = () => setPlayerError(false);
+  const handlePlayerError = () => setPlayerError(true);
 
-  // Trailer Modal
-  useEffect(() => {
-    const escHandler = (e) => e.key === 'Escape' && trailerModal && !isClosing && closeTrailerModal();
-    const clickOutside = (e) => modalRef.current && !modalRef.current.contains(e.target) && !isClosing && closeTrailerModal();
-    if (trailerModal) {
-      document.addEventListener('keydown', escHandler);
-      document.addEventListener('mousedown', clickOutside);
-    }
-    return () => {
-      document.removeEventListener('keydown', escHandler);
-      document.removeEventListener('mousedown', clickOutside);
-    };
-  }, [trailerModal, isClosing]);
-
-  const openTrailerModal = (key) => {
-    setTrailerKey(key);
-    setTrailerModal(true);
-    setIsClosing(false);
-  };
-
-  const closeTrailerModal = () => {
+  const openTrailer = () => setTrailerModal(true);
+  const closeTrailer = () => {
     setIsClosing(true);
     setTimeout(() => {
       setTrailerModal(false);
-      setTrailerKey(null);
       setIsClosing(false);
-    }, 250);
+    }, 300);
   };
 
   const scrollCarousel = (dir) => {
@@ -138,90 +98,14 @@ const MovieDetail = () => {
 
   const handleImageError = (id) => setImageErrors(prev => ({ ...prev, [id]: true }));
 
-  const handlePlayClick = () => {
-    setIframeLoaded(true);
-    setTimeout(() => document.querySelector('.player-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
-  };
-
-  const isoDate = formatISODate(movie?.release_date);
-
-  // Schema.org - Rich Results
-  const schema = useMemo(() => ({
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "BreadcrumbList",
-        "itemListElement": [
-          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://gomovies.press" },
-          { "@type": "ListItem", "position": 2, "name": "Movies", "item": "https://gomovies.press/movies" },
-          { "@type": "ListItem", "position": 3, "name": movie?.title, "item": `https://gomovies.press/movie/${slugify(movie?.title)}-${id}` }
-        ]
-      },
-      {
-        "@type": "Movie",
-        "name": movie?.title,
-        "url": `https://gomovies.press/movie/${slugify(movie?.title)}-${id}`,
-        "image": movie?.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-        "description": movie?.overview,
-        "datePublished": isoDate,
-        "duration": formatDuration(movie?.runtime),
-        "genre": movie?.genres?.map(g => g.name),
-        "director": movie?.credits?.crew?.filter(c => c.job === 'Director').map(d => ({
-          "@type": "Person", "name": d.name
-        })),
-        "actor": movie?.credits?.cast?.slice(0, 6).map(a => ({
-          "@type": "Person", "name": a.name
-        })),
-        "aggregateRating": movie?.vote_average ? {
-          "@type": "AggregateRating",
-          "ratingValue": movie.vote_average.toFixed(1) / 2,
-          "reviewCount": movie.vote_count
-        } : undefined,
-        "review": reviews?.slice(0, 3).map(r => ({
-          "@type": "Review",
-          "author": { "@type": "Person", "name": r.author },
-          "datePublished": formatISODate(r.created_at),
-          "reviewBody": r.content.substring(0, 500),
-          "reviewRating": r.author_details?.rating ? {
-            "@type": "Rating",
-            "ratingValue": r.author_details.rating.toFixed(1) / 2,
-            "bestRating": 5
-          } : undefined,
-          "itemReviewed": {
-            "@type": "Movie",
-            "name": movie?.title,
-            "image": movie?.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-            "dateCreated": isoDate,
-            "director": movie?.credits?.crew?.filter(c => c.job === 'Director').map(d => ({
-              "@type": "Person", "name": d.name
-            })),
-            "sameAs": `https://gomovies.press/movie/${slugify(movie?.title)}-${id}`
-          }
-        }))
-      },
-      {
-        "@type": "VideoObject",
-        "name": `${movie?.title} - Watch Online Free`,
-        "description": movie?.overview ? movie.overview : `Watch ${movie?.title} online free in HD on GoMovies.`,
-        "thumbnailUrl": movie?.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
-        "uploadDate": formatISODate(movie?.release_date),
-        "duration": formatDuration(movie?.runtime),
-        "contentUrl": `https://vidsrc.net/embed/movie?tmdb=${id}`,
-        "embedUrl": `https://gomovies.press/embed/movie/${slugify(movie?.title)}-${id}`,
-        "publisher": { "@type": "Organization", "name": "GoMovies", "url": "https://gomovies.press" }
-      }
-    ]
-  }), [movie, id, reviews, isoDate]);
-
   // Preload Hero
   useEffect(() => {
-    
     if (movie && !preloadLinkRef.current) {
       const link = document.createElement('link');
       link.rel = 'preload';
       link.as = 'image';
       link.href = movie.backdrop_path
-        ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+        ? `https://res.cloudinary.com/dxapfwfrx/image/fetch/q_auto,f_webp,w_1280/https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
         : `https://placehold.co/1280x720/111827/FFFFFF/png?text=No+Backdrop`;
       document.head.appendChild(link);
       preloadLinkRef.current = link;
@@ -235,11 +119,21 @@ const MovieDetail = () => {
     };
   }, [movie]);
 
-  // Redirect old slug
-  if (idMatch) {
-    const [, movieId, title] = idMatch;
-    return <Navigate to={`/movie/${slugify(title)}-${movieId}`} replace />;
-  }
+  useEffect((e) => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        closeTrailer();
+      }
+    };
+    if (trailerModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.body.style.overflow = 'unset';
+    };
+  }, [trailerModal]);
 
   if (loading) {
     return (
@@ -259,25 +153,78 @@ const MovieDetail = () => {
 
   const year = movie.release_date?.split('-')[0] || 'N/A';
   const backdrop = movie.backdrop_path
-    ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+    ? `https://res.cloudinary.com/dxapfwfrx/image/fetch/q_auto,f_webp,w_1280/https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
     : `https://placehold.co/1280x720/111827/FFFFFF/png?text=No+Backdrop`;
-  const poster = movie.poster_path
-    ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
-    : 'https://placehold.co/500x750/000000/FFFFFF/png?text=No+Poster';
-  const trailer = movie.videos?.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+  const isoDate = formatISODate(movie.release_date);
 
-  const pageTitle = `Watch ${movie.title} (${year}) Full Movie Free Online in HD - GoMovies`;
-  const metaDesc = `${movie.overview.substring(0, 155)}... Watch ${movie.title} free streaming on GoMovies. No signup.`;
+  const schema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://gomovies.press" },
+          { "@type": "ListItem", "position": 2, "name": "Movies", "item": "https://gomovies.press/movies" },
+          { "@type": "ListItem", "position": 3, "name": movie.title, "item": `https://gomovies.press/movie/${slugify(movie.title)}-${id}` }
+        ]
+      },
+      {
+        "@type": "Movie",
+        "name": movie.title,
+        "url": `https://gomovies.press/movie/${slugify(movie.title)}-${id}`,
+        "image": movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : null,
+        "description": movie.overview,
+        "datePublished": isoDate,
+        "director": {
+          "@type": "Person",
+          "name": movie.credits?.crew?.find(c => c.job === 'Director')?.name || 'N/A'
+        },
+        "actor": cast.slice(0, 5).map(a => ({
+          "@type": "Person",
+          "name": a.name
+        })),
+        "genre": movie.genres?.map(g => g.name),
+        "duration": formatDuration(movie.runtime),
+        "aggregateRating": movie.vote_average ? {
+          "@type": "AggregateRating",
+          "ratingValue": movie.vote_average.toFixed(1),
+          "reviewCount": movie.vote_count
+        } : undefined,
+        "review": reviews.slice(0, 3).map(r => ({
+          "@type": "Review",
+          "author": { "@type": "Person", "name": r.author },
+          "datePublished": formatISODate(r.created_at),
+          "reviewBody": r.content.substring(0, 500),
+          "reviewRating": r.author_details?.rating ? {
+            "@type": "Rating",
+            "ratingValue": r.author_details.rating,
+            "bestRating": 10
+          } : undefined
+        }))
+      },
+      {
+        "@type": "VideoObject",
+        "name": `${movie.title} (${year}) - Watch Online Free`,
+        "description": movie.overview,
+        "thumbnailUrl": movie.backdrop_path ? `https://image.tmdb.org/t/p/w500${movie.backdrop_path}` : null,
+        "uploadDate": isoDate,
+        "duration": formatDuration(movie.runtime),
+        "contentUrl": `https://gomovies.press/stream/movie/${id}`,
+        "embedUrl": `https://gomovies.press/embed/movie/${id}`,
+        "publisher": { "@type": "Organization", "name": "GoMovies", "url": "https://gomovies.press" }
+      }
+    ]
+  };
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle}</title>
-        <meta name="description" content={metaDesc} />
-        <meta name="keywords" content={`${movie.title}, watch ${movie.title} online free, ${movie.title} full movie, ${movie.genres?.map(g => g.name).join(', ')}`} />
-        <meta property="og:title" content={pageTitle} />
-        <meta property="og:description" content={metaDesc} />
-        <meta property="og:image" content={poster} />
+        <title>Watch {movie.title} ({year}) Free Online in HD - GoMovies</title>
+        <meta name="description" content={`${movie.overview.substring(0, 155)}... Watch ${movie.title} free streaming on GoMovies. No signup.`} />
+        <meta name="keywords" content={`${movie.title} full movie, watch ${movie.title} online free, ${movie.title} streaming, ${movie.title} hd`} />
+        <meta property="og:title" content={`Watch ${movie.title} (${year}) Free Online`} />
+        <meta property="og:description" content={movie.overview.substring(0, 155)} />
+        <meta property="og:image" content={backdrop} />
         <meta property="og:url" content={window.location.href} />
         <meta property="og:type" content="video.movie" />
         <meta name="twitter:card" content="summary_large_image" />
@@ -287,7 +234,7 @@ const MovieDetail = () => {
 
       <div className="min-h-screen bg-gray-900 text-white">
 
-        {/* Hero - Fast LCP */}
+        {/* Hero */}
         <section className="relative h-[60vh] md:h-[70vh] flex items-center justify-center overflow-hidden">
           <picture>
             <source srcSet={backdrop.replace('w_1280', 'w_780')} media="(max-width: 768px)" />
@@ -316,28 +263,18 @@ const MovieDetail = () => {
               <span className="text-xl font-bold">{movie.vote_average.toFixed(1)}</span>
               <span className="text-gray-400">/ 10</span>
             </div>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={handlePlayClick}
-                className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-              >
-                Play Now
-              </button>
-              {trailer && (
-                <button
-                  onClick={() => openTrailerModal(trailer.key)}
-                  className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                >
-                  Trailer
-                </button>
-              )}
-            </div>
+            <button
+              onClick={() => document.querySelector('.player-section')?.scrollIntoView({ behavior: 'smooth' })}
+              className="bg-gradient-to-r from-red-600 to-pink-600 hover:from-red-700 hover:to-pink-700 px-8 py-3 rounded-full font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            >
+              Play Movie
+            </button>
           </div>
         </section>
 
         {/* Floating Play */}
         <button
-          onClick={handlePlayClick}
+          onClick={() => document.querySelector('.player-section')?.scrollIntoView({ behavior: 'smooth' })}
           className="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 p-4 rounded-full shadow-2xl z-50 transition-all hover:scale-110"
           aria-label="Play movie"
         >
@@ -346,34 +283,12 @@ const MovieDetail = () => {
           </svg>
         </button>
 
-        {/* Trailer Modal */}
-        {trailerModal && (
-          <div className={`fixed inset-0 bg-black/90 flex items-center justify-center z-50 transition-opacity ${isClosing ? 'opacity-0' : 'opacity-100'}`}>
-            <div ref={modalRef} className={`relative w-full max-w-4xl p-6 transition-transform ${isClosing ? 'scale-95' : 'scale-100'}`}>
-              <button onClick={closeTrailerModal} className="absolute -top-12 right-0 text-white hover:text-red-400">
-                <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <div className="aspect-video bg-black rounded-xl overflow-hidden">
-                <iframe
-                  src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1`}
-                  title="Trailer"
-                  className="w-full h-full"
-                  allowFullScreen
-                  loading="lazy"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Main Content */}
         <div className="max-w-7xl mx-auto px-4 py-8 -mt-20 relative z-10">
           <div className="grid md:grid-cols-3 gap-8 mb-12">
             <div className="md:col-span-1">
               <img
-                src={imageErrors[movie.id] ? 'https://placehold.co/500x750/000000/FFFFFF/png?text=No+Poster' : poster}
+                src={imageErrors[movie.id] ? 'https://placehold.co/500x750/000000/FFFFFF/png?text=No+Image' : `https://res.cloudinary.com/dxapfwfrx/image/fetch/q_auto,f_webp,w_500/https://image.tmdb.org/t/p/w500${movie.poster_path}`}
                 alt={`${movie.title} poster`}
                 className="w-full rounded-xl shadow-2xl ring-4 ring-red-600/30"
                 onError={() => handleImageError(movie.id)}
@@ -386,10 +301,10 @@ const MovieDetail = () => {
                 <p className="text-gray-300 leading-relaxed">{movie.overview}</p>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-semibold text-gray-400">Release:</span> {movie.release_date}</div>
+                <div><span className="font-semibold text-gray-400">Release Date:</span> {movie.release_date}</div>
                 <div><span className="font-semibold text-gray-400">Runtime:</span> {movie.runtime} min</div>
+                <div><span className="font-semibold text-gray-400">Director:</span> {movie.credits?.crew?.find(c => c.job === 'Director')?.name || 'N/A'}</div>
                 <div><span className="font-semibold text-gray-400">Views:</span> {views.toLocaleString()}</div>
-                <div><span className="font-semibold text-gray-400">Rating:</span> {movie.vote_average.toFixed(1)} / 10</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {movie.genres?.map(g => (
@@ -407,18 +322,8 @@ const MovieDetail = () => {
 
           {/* Player */}
           <section className="player-section mb-16">
-            <h2 className="text-3xl font-bold text-center mb-6">Watch {movie.title} Free</h2>
-            {!iframeLoaded ? (
-              <div className="bg-gray-800 rounded-2xl p-12 text-center">
-                <p className="text-gray-400 mb-6">Click below to start streaming in HD</p>
-                <button
-                  onClick={handlePlayClick}
-                  className="bg-red-600 hover:bg-red-700 px-12 py-4 rounded-full font-bold text-xl shadow-lg hover:shadow-xl transform hover:scale-105 transition"
-                >
-                  Play Movie
-                </button>
-              </div>
-            ) : playerError ? (
+            <h2 className="text-3xl font-bold text-center mb-6">Watch {movie.title}</h2>
+            {playerError ? (
               <div className="bg-red-900/50 border border-red-600 text-red-300 p-6 rounded-xl text-center">
                 Player error. Try again or use mirror.
               </div>
@@ -429,9 +334,9 @@ const MovieDetail = () => {
                   title={`${movie.title} stream`}
                   className="w-full h-full"
                   allowFullScreen
-                  onLoad={() => setPlayerError(false)}
-                  onError={() => setPlayerError(true)}
-                  loading="lazy"
+                  onLoad={handlePlayerLoad}
+                  onError={handlePlayerError}
+                  loading="eager"  // Changed to eager for immediate load
                 />
               </div>
             )}
@@ -450,7 +355,7 @@ const MovieDetail = () => {
                       className="flex-shrink-0 w-44 text-center group"
                     >
                       <img
-                        src={imageErrors[actor.id] ? 'https://placehold.co/200x300/000000/FFFFFF/png?text=No+Image' : `https://image.tmdb.org/t/p/w300${actor.profile_path}`}
+                        src={imageErrors[actor.id] ? 'https://placehold.co/300x450/000000/FFFFFF/png?text=No+Image' : `https://res.cloudinary.com/dxapfwfrx/image/fetch/q_auto,f_webp,w_300/https://image.tmdb.org/t/p/w300${actor.profile_path}`}
                         alt={actor.name}
                         className="w-full h-64 object-cover rounded-xl shadow-lg group-hover:scale-105 transition"
                         onError={() => handleImageError(actor.id)}
@@ -461,12 +366,12 @@ const MovieDetail = () => {
                     </Link>
                   ))}
                 </div>
-                <button onClick={() => scrollCarousel('prev')} className="absolute left-0 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 p-2 rounded-full" aria-label="Scroll left">
+                <button onClick={() => scrollCarousel('prev')} className="absolute left-0 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 p-2 rounded-full">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
-                <button onClick={() => scrollCarousel('next')} className="absolute right-0 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 p-2 rounded-full" aria-label="Scroll right">
+                <button onClick={() => scrollCarousel('next')} className="absolute right-0 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 p-2 rounded-full">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
@@ -475,7 +380,7 @@ const MovieDetail = () => {
             </section>
           )}
 
-          {/* Reviews - Restored & Enhanced */}
+          {/* Reviews */}
           {reviews.length > 0 && (
             <section className="mb-16">
               <h2 className="text-3xl font-bold text-center mb-6">User Reviews</h2>
@@ -519,8 +424,8 @@ const MovieDetail = () => {
                         {/* Review Content */}
                         <div className="flex-1">
                           <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-lg font-semibold text-white" itemScope itemType="https://schema.org/Person">
-                              <span>{review.author}</span>
+                            <h3 className="text-lg font-semibold text-white">
+                              {review.author}
                             </h3>
                             {rating && (
                               <div className="flex items-center gap-1">
@@ -541,9 +446,7 @@ const MovieDetail = () => {
                             )}
                           </div>
                           <p className="text-sm text-gray-400 mb-3">
-                            Reviewed on <time dateTime={review.created_at}>
-                              {new Date(review.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                            </time>
+                            Reviewed on {new Date(review.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                           </p>
                           <p className="text-gray-200 leading-relaxed">
                             {review.content.length > 300 ? (
