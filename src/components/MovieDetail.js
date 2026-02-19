@@ -15,6 +15,7 @@ const MovieDetail = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playerError, setPlayerError] = useState(false);
+  const [playerError, setPlayerError] = useState(false);
   const [error, setError] = useState(null);
   const [trailerModal, setTrailerModal] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
@@ -99,6 +100,9 @@ const MovieDetail = () => {
   useEffect(() => {
     if (movie) trackView();
   }, [movie, trackView]);
+
+  const handlePlayerLoad = () => setPlayerError(false);
+  const handlePlayerError = () => setPlayerError(true);
 
   // Trailer Modal
   useEffect(() => {
