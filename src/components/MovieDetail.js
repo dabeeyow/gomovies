@@ -141,7 +141,6 @@ const MovieDetail = () => {
   const handleImageError = (id) => setImageErrors(prev => ({ ...prev, [id]: true }));
 
   const handlePlayClick = () => {
-    setIframeLoaded(true);
     setTimeout(() => document.querySelector('.player-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
   };
 
