@@ -15,7 +15,6 @@ const MovieDetail = () => {
   const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [playerError, setPlayerError] = useState(false);
-  const [playerError, setPlayerError] = useState(false);
   const [error, setError] = useState(null);
   const [trailerModal, setTrailerModal] = useState(false);
   const [trailerKey, setTrailerKey] = useState(null);
